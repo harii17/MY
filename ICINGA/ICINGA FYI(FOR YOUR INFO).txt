@@ -1,0 +1,12 @@
+ICINGA FYI(FOR YOUR INFO)
+=========================
+
+Steps to generate certificate for agents in server (icinga2 node wizard)
+--------------------------------------------------
+==> cd /var/lib/icinga2/certs
+==> icinga2 pki new-cert -cn <AGENT HOSTNAME> --key <AGENT HOSTNAME>.key --csr <AGENT HOSTNAME>.csr
+==> icinga2 sign -csr --csr <AGENT HOSTNAME>.csr --cert <AGENT HOSTNAME>.crt
+
+* copy <AGENT HOSTNAME>.key <AGENT HOSTNAME>.crt ca.crt file from server to agent machine
+* set appropriate owner(nagios) and permission to those files
+

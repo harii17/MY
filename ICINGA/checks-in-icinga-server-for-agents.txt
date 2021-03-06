@@ -1,0 +1,155 @@
+CHECKS CONFIGURED IN SERVER
+===========================
+
+url checks
+----------
+
+object Service "https dinoct-website" {
+  host_name = "DINOCT-WEBSITE"                               #created dummy host named DINOCT-WEBSITE in conf.d/hosts.conf
+  vars.http_vhost = "www.dinoct.com"
+  vars.http_uri = "/"
+  vars.http_warn_time = "5"
+  vars.http_expect = "200"
+  vars.http_critical_time = "10"
+  check_command = "https"
+}
+
+ssl validity check
+------------------
+
+object Service "SSL e-Agree" {
+  host_name = "E-AGREE-APP"
+  vars.hostaddress = "app.e-agree.com"
+  vars.ssl_warn_time = "30"
+  vars.ssl_critical_time = "15"
+  check_command = "http_ssl"
+}
+
+normal checks of agent configured in server
+-------------------------------------------
+
+apply Service "swap" {
+  import "generic-service"                                  #default template service in template.conf
+  import "satellite-service"                                #custom alert template in template.conf
+  check_command = "swap"
+  command_endpoint = host.vars.client_endpoint
+  assign where host.vars.client_endpoint == "Dinoct-Gitlab-Docker"           #agent-server-hostname
+}
+
+apply Service "Java process"{
+  import "generic-service"
+  check_command = "tcp"
+  command_endpoint = host.vars.client_endpoint
+  assign where host.vars.client_endpoint == "ip-10-20-4-212.ec2.internal"
+  vars.tcp_port = 8090
+}
+
+cpu and memory checks with custom plugins
+-----------------------------------------
+
+apply Service "cpu"{
+  import "generic-service"
+  import "satellite-service"
+  check_command = "cpu"
+  command_endpoint = host.vars.client_endpoint
+  assign where host.vars.client_endpoint == "ip-10-0-0-53.ec2.internal"
+  vars.cpu_warning = 70
+  vars.cpu_critical = 80
+}
+
+
+apply Service "memory" {
+  import "generic-service"
+  check_command = "memory"
+  command_endpoint = host.vars.client_endpoint
+  assign where host.vars.client_endpoint && (host.vars.os == "Linux")      #for all linux agents
+  vars.free_memory = true
+  vars.memory_warning = 10
+  vars.memory_critical = 05
+  vars.Buffer_free = true
+}
+
+--------------------------------------------------------------------------------
+
+other checks
+------------
+
+apply Service "disk" {
+  import "generic-service"
+  import "satellite-service"
+  check_command = "disk"
+  vars.disk_wfree = "20%"
+  vars.disk_cfree = "10%"
+#  vars += config
+#  vars.disk_partitions = "/"
+  command_endpoint = host.vars.client_endpoint
+  assign where host.vars.client_endpoint && (host.vars.os == "Linux")
+}
+
+apply Service "load" {
+  import "generic-service"
+  import "satellite-service"
+  check_command = "load"
+  /* Used by the ScheduledDowntime apply rule in `downtimes.conf`. */
+#  vars.backup_downtime = "02:00-03:00"
+  command_endpoint = host.vars.client_endpoint
+  assign where host.vars.client_endpoint && (host.vars.os == "Linux")
+}
+
+apply Service "procs" {
+  import "generic-service"
+  import "satellite-service"
+  check_command = "procs"
+  vars.procs_warning = "600"
+  vars.procs_critical= "800"
+  command_endpoint = host.vars.client_endpoint
+  assign where host.vars.client_endpoint && (host.vars.os == "Linux")
+}
+
+apply Service "swap" {
+  import "generic-service"
+  check_command = "swap"
+  command_endpoint = host.vars.client_endpoint
+  assign where host.vars.client_endpoint && (host.vars.os == "Linux")
+}
+
+apply Service "users" {
+  import "generic-service"
+  import "satellite-service"
+  check_command = "users"
+  command_endpoint = host.vars.client_endpoint
+  assign where host.vars.client_endpoint && (host.vars.os == "Linux")
+}
+
+apply Service "icinga" {
+  import "generic-service"
+  import "satellite-service"
+  check_command = "icinga"
+  command_endpoint = host.vars.client_endpoint
+  assign where host.vars.client_endpoint && (host.vars.os == "Linux")
+}
+
+apply Service "ssh" {
+  import "generic-service"
+  import "satellite-service"
+  check_command = "ssh"
+  vars.ssh_port = 6582
+  command_endpoint = host.vars.client_endpoint
+  assign where host.vars.client_endpoint && (host.vars.os == "Linux")
+}
+
+apply Service "http" {
+  import "generic-service"
+  check_command = "http"
+  command_endpoint = host.vars.client_endpoint
+  assign where host.vars.client_endpoint && (host.vars.os == "Linux")
+}
+
+apply Service "ping4" {
+  import "generic-service"
+  import "satellite-service"
+  check_command = "ping4"
+  command_endpoint = host.vars.client_endpoint
+  assign where host.vars.client_endpoint && (host.vars.os == "Linux")
+}
+

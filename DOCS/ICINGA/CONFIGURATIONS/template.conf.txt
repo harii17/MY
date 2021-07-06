@@ -1,0 +1,25 @@
+template Host "linux-server" {
+  max_check_attempts = 3
+  check_interval = 1m
+  retry_interval = 30s
+  check_command = "hostalive"
+  groups += [ "linux-servers" ]
+}
+
+template Service "prod-service" {
+  max_check_attempts = 4
+  check_interval = 1m
+  retry_interval = 30s
+}
+
+template Host "satellite-host" {
+  vars.notification["mail"] = {
+    groups = [ "icingaadmins" ]
+  }
+}
+
+template Service "satellite-service" {
+  vars.notification["mail"] = {
+    groups = [ "icingaadmins" ]
+  }
+}

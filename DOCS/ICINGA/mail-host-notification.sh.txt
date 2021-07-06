@@ -1,0 +1,29 @@
+#!/bin/sh
+template=`cat <<TEMPLATE
+****** Dinoct-Icinga Monitoring System ******
+
+Notification Type: $NOTIFICATIONTYPE
+
+Host: $HOSTALIAS
+Address: $HOSTADDRESS
+State: $HOSTSTATE
+Client: $HOSTCLIENT
+
+Date/Time: $LONGDATETIME
+
+Additional Info: $HOSTOUTPUT
+
+Comment: [$NOTIFICATIONAUTHORNAME] $NOTIFICATIONCOMMENT
+TEMPLATE
+`
+
+#/usr/bin/printf "%b" "$template" | mail -s "$NOTIFICATIONTYPE - $HOSTDISPLAYNAME is $HOSTSTATE" $USEREMAIL
+#/usr/bin/printf "%b" "$template" | mail -s "SEVERITY 1 HOST OUTAGE" -S from=icinga@monitor.dinoct.com servicedesk@dinoct.com
+
+#/usr/bin/printf "%b" "$template" | mail -s "$NOTIFICATIONTYPE - $HOSTDISPLAYNAME is $HOSTSTATE" -S from=alerts-icinga@dinoct.com servicedesk@dinoct.com
+
+#/usr/bin/printf "%b" "$template" | mail -s "$NOTIFICATIONTYPE - $HOSTDISPLAYNAME is $HOSTSTATE" -r "alerts-icinga@dinoct.com" $USEREMAIL
+
+/usr/bin/printf "%b" "$template" | mail -s "$NOTIFICATIONTYPE - $HOSTDISPLAYNAME is $HOSTSTATE" -r "alerts-icinga@dinoct.com" "harikrishnan.v@dinoct.com"
+
+#echo "$template" | mail -s "$NOTIFICATIONTYPE - $HOSTDISPLAYNAME - $SERVICEDISPLAYNAME is $SERVICESTATE" -r "alerts-icinga@dinoct.com" "syamkumar.pb@dinoct.com"

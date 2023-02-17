@@ -1,0 +1,674 @@
+#Provider - AWS
+data "aws_caller_identity" "current" {}
+
+#### MANAGEMENT VPC ####
+
+resource "aws_vpc" "management" {
+    cidr_block = "${var.mgmt_vpc_cidr}"
+    tags = {
+      "Name" = "Management"
+    }
+}
+
+#Internet gateway
+resource "aws_internet_gateway" "mgmt_igw" {
+    vpc_id = aws_vpc.management.id
+
+    tags = {
+      "Name" = "igw"
+    }
+}
+
+#Public Subnet 1
+resource "aws_subnet" "mgmt_pub_sub1" {
+    vpc_id = aws_vpc.management.id
+    cidr_block = "${var.mgmt_pubsub1}"
+    availability_zone = "${var.az_1}"
+    
+
+    tags = {
+      "Name" = "mgmt-pub-sub1"
+    }
+}
+
+#Public Subnet 2
+resource "aws_subnet" "mgmt_pub_sub2" {
+    vpc_id = aws_vpc.management.id
+    cidr_block = "${var.mgmt_pubsub2}"
+    availability_zone = "${var.az_2}"
+
+    tags = {
+      "Name" = "mgmt-pub-sub2"
+    }
+}
+
+
+#Private Subnet 1 in us-east-1a
+resource "aws_subnet" "mgmt_pvt_sub1" {
+    vpc_id = aws_vpc.management.id
+    cidr_block = "${var.mgmt_pvtsub1}"
+    availability_zone = "${var.az_1}"
+
+    tags = {
+      "Name" = "mgmt-pvt-sub1"
+    }
+}
+
+#Private Subnet 2 in us-east-1b
+resource "aws_subnet" "mgmt_pvt_sub2" {
+    vpc_id = aws_vpc.management.id
+    cidr_block = "${var.mgmt_pvtsub2}"
+    availability_zone = "${var.az_2}"
+
+    tags = {
+      "Name" = "mgmt-pvt-sub2"
+    }
+}
+
+#Elastic IP 1
+resource "aws_eip" "eip1" {
+    vpc = true
+  
+}
+#NAT gateway for public subnet1
+resource "aws_nat_gateway" "nat_pub_sub1" {
+    subnet_id = aws_subnet.mgmt_pub_sub1.id
+    allocation_id = aws_eip.eip1.id
+
+    tags = {
+      "Name" = "Nat-gw-pubsub1"
+    }
+  
+}
+
+#Route table for public subnet1
+resource "aws_route_table" "mgmt_rt_pubsub1" {
+    vpc_id = aws_vpc.management.id
+
+    route {
+      cidr_block = "0.0.0.0/0"
+      gateway_id = aws_internet_gateway.mgmt_igw.id
+    } 
+  
+    tags = {
+      "Name" = "mgmt-rt-pubsub1"
+    }
+}
+
+#Route table association for public subnet1
+resource "aws_route_table_association" "mgmt_rt_association_pubsub1" {
+    subnet_id = aws_subnet.mgmt_pub_sub1.id
+    route_table_id = aws_route_table.mgmt_rt_pubsub1.id
+}
+
+
+#Route table for public subnet2
+resource "aws_route_table" "mgmt_rt_pubsub2" {
+    vpc_id = aws_vpc.management.id
+
+    route {
+      cidr_block = "0.0.0.0/0"
+      gateway_id = aws_internet_gateway.mgmt_igw.id
+    } 
+  
+    tags = {
+      "Name" = "mgmt-rt-pubsub2"
+    }
+}
+
+#Route table association for public subnet2
+resource "aws_route_table_association" "mgmt_rt_association_pubsub2" {
+    subnet_id = aws_subnet.mgmt_pub_sub2.id
+    route_table_id = aws_route_table.mgmt_rt_pubsub2.id
+}
+
+#Route table for private subnet1
+resource "aws_route_table" "mgmt_rt_pvtsub1" {
+    vpc_id = aws_vpc.management.id
+
+    route {
+      cidr_block = "0.0.0.0/0"
+      nat_gateway_id = aws_nat_gateway.nat_pub_sub1.id
+    }
+  
+    tags = {
+      "Name" = "mgmt-rt-pvtsub1"
+    }
+}
+
+#Route table association for private subnet1
+resource "aws_route_table_association" "mgmt_rt_association_pvtsub1" {
+    subnet_id = aws_subnet.mgmt_pvt_sub1.id
+    route_table_id = aws_route_table.mgmt_rt_pvtsub1.id
+}
+
+#Elastic IP 2
+resource "aws_eip" "eip2" {
+    vpc = true
+  
+}
+#NAT gateway for public subnet2
+resource "aws_nat_gateway" "nat_pub_sub2" {
+    subnet_id = aws_subnet.mgmt_pub_sub2.id
+    allocation_id = aws_eip.eip2.id
+
+    tags = {
+      "Name" = "Nat-gw-pubsub2"
+    }
+  
+}
+
+#Route table for private subnet2
+resource "aws_route_table" "mgmt_rt_pvtsub2" {
+    vpc_id = aws_vpc.management.id
+
+    route {
+      cidr_block = "0.0.0.0/0"
+      nat_gateway_id = aws_nat_gateway.nat_pub_sub2.id
+    }
+  
+    tags = {
+      "Name" = "mgmt-rt-pvtsub2"
+    }
+}
+
+#Route table association for private subnet2
+resource "aws_route_table_association" "rt-association-pvtsub2" {
+    subnet_id = aws_subnet.mgmt_pvt_sub2.id
+    route_table_id = aws_route_table.mgmt_rt_pvtsub2.id
+}
+
+######## FLOW LOG for Management VPC ###########
+
+resource "aws_flow_log" "mgmt_flow_log" {
+  iam_role_arn    = aws_iam_role.mgmt_iam_role.arn
+  log_destination = aws_cloudwatch_log_group.mgmt_log_group.arn
+  traffic_type    = "ALL"
+  vpc_id          = aws_vpc.management.id
+}
+
+resource "aws_cloudwatch_log_group" "mgmt_log_group" {
+  name = "management-vpc-flow-log"
+  retention_in_days = "30"
+}
+
+resource "aws_iam_role" "mgmt_iam_role" {
+  name = "flow-log-role-mgmt"
+
+  assume_role_policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "vpc-flow-logs.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EOF
+}
+
+resource "aws_iam_role_policy" "mgmt_iam_policy" {
+  name = "flow-log-policy-mgmt"
+  role = aws_iam_role.mgmt_iam_role.id
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogGroups",
+        "logs:DescribeLogStreams"
+      ],
+      "Effect": "Allow",
+      "Resource": "*"
+    }
+  ]
+}
+EOF
+}
+
+### DEVELOPMENT VPC ###
+
+resource "aws_vpc" "development" {
+  cidr_block = "${var.dev_vpc_cidr}"
+  tags = {
+      "Name" = "Development"
+    }
+}
+
+resource "aws_subnet" "dev_pvt_sub1" {
+    vpc_id = aws_vpc.development.id
+    cidr_block = "${var.dev_pvtsub1}"
+    availability_zone = "${var.az_1}"
+
+    tags = {
+      "Name" = "dev-pvt-sub1"
+    }
+}
+
+resource "aws_subnet" "dev_pvt_sub2" {
+    vpc_id = aws_vpc.development.id
+    cidr_block = "${var.dev_pvtsub2}"
+    availability_zone = "${var.az_2}"
+
+    tags = {
+      "Name" = "dev-pvt-sub2"
+    }
+}
+
+#Route table for private subnet1
+resource "aws_route_table" "rt_pvtsub1" {
+    vpc_id = aws_vpc.development.id
+  
+    tags = {
+      "Name" = "dev-rt-pvtsub1"
+    }
+}
+
+#Route table association for private subnet1
+resource "aws_route_table_association" "rt_association_pvtsub1" {
+    subnet_id = aws_subnet.dev_pvt_sub1.id
+    route_table_id = aws_route_table.rt_pvtsub1.id
+}
+
+#Route table association for private subnet2
+resource "aws_route_table_association" "dev_rt_association_pvtsub1" {
+    subnet_id = aws_subnet.dev_pvt_sub2.id
+    route_table_id = aws_route_table.rt_pvtsub1.id
+}
+
+######## FLOW LOG for Development VPC ###########
+
+resource "aws_flow_log" "dev_flow_log" {
+  iam_role_arn    = aws_iam_role.dev_iam_role.arn
+  log_destination = aws_cloudwatch_log_group.dev_log_group.arn
+  traffic_type    = "ALL"
+  vpc_id          = aws_vpc.development.id
+}
+
+resource "aws_cloudwatch_log_group" "dev_log_group" {
+  name = "development-vpc-flow-log"
+  retention_in_days = "30"
+}
+
+resource "aws_iam_role" "dev_iam_role" {
+  name = "flow-log-role-dev"
+
+  assume_role_policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "vpc-flow-logs.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EOF
+}
+
+resource "aws_iam_role_policy" "dev_iam_policy" {
+  name = "flow-log-policy-dev"
+  role = aws_iam_role.dev_iam_role.id
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogGroups",
+        "logs:DescribeLogStreams"
+      ],
+      "Effect": "Allow",
+      "Resource": "*"
+    }
+  ]
+}
+EOF
+}
+
+
+#######
+### PRODUCTION VPC ###
+
+resource "aws_vpc" "production" {
+  cidr_block = "${var.prod_vpc_cidr}"
+  tags = {
+      "Name" = "Production"
+    }
+}
+
+resource "aws_subnet" "prod_pvt_sub1" {
+    vpc_id = aws_vpc.production.id
+    cidr_block = "${var.prod_pvtsub1}"
+    availability_zone = "${var.az_1}"
+
+    tags = {
+      "Name" = "prod-pvt-sub1"
+    }
+}
+
+resource "aws_subnet" "prod_pvt_sub2" {
+    vpc_id = aws_vpc.production.id
+    cidr_block = "${var.prod_pvtsub2}"
+    availability_zone = "${var.az_2}"
+
+    tags = {
+      "Name" = "prod-pvt-sub2"
+    }
+}
+
+#Route table for private subnet1
+resource "aws_route_table" "prod_rt_pvtsub1" {
+    vpc_id = aws_vpc.production.id
+  
+    tags = {
+      "Name" = "prod-rt-pvtsub1"
+    }
+}
+
+#Route table association for private subnet1
+resource "aws_route_table_association" "prod_rt_association_pvtsub1" {
+    subnet_id = aws_subnet.prod_pvt_sub1.id
+    route_table_id = aws_route_table.prod_rt_pvtsub1.id
+}
+
+#Route table association for private subnet2
+resource "aws_route_table_association" "prod_rt_association_pvtsub2" {
+    subnet_id = aws_subnet.prod_pvt_sub2.id
+    route_table_id = aws_route_table.prod_rt_pvtsub1.id
+}
+
+######## FLOW LOG for Production VPC ###########
+
+resource "aws_flow_log" "prod_flow_log" {
+  iam_role_arn    = aws_iam_role.prod_iam_role.arn
+  log_destination = aws_cloudwatch_log_group.prod_log_group.arn
+  traffic_type    = "ALL"
+  vpc_id          = aws_vpc.production.id
+}
+
+resource "aws_cloudwatch_log_group" "prod_log_group" {
+  name = "production-vpc-flow-log"
+  retention_in_days = "30"
+}
+
+resource "aws_iam_role" "prod_iam_role" {
+  name = "flow-log-role-prod"
+
+  assume_role_policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "vpc-flow-logs.amazonaws.com"
+      },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EOF
+}
+
+resource "aws_iam_role_policy" "prod_iam_policy" {
+  name = "flow-log-policy-prod"
+  role = aws_iam_role.prod_iam_role.id
+  policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogGroups",
+        "logs:DescribeLogStreams"
+      ],
+      "Effect": "Allow",
+      "Resource": "*"
+    }
+  ]
+}
+EOF
+}
+
+###########
+
+##### AWS Transit gateway #####
+
+resource "aws_ec2_transit_gateway" "test_hipaa_transit_gateway" {
+  description = "test-HIPAA Transit Gateway"
+  auto_accept_shared_attachments = "enable"
+  default_route_table_association = "disable"
+  default_route_table_propagation = "disable"
+  dns_support = "enable"
+  vpn_ecmp_support = "enable"
+  tags = {
+    "Name" = "Test-HIPAA Transit Gateway"
+  }
+
+}
+
+resource "aws_ec2_transit_gateway_vpc_attachment" "ManagementVPCtoTransitGateway" {
+  subnet_ids         = [aws_subnet.mgmt_pvt_sub1.id, aws_subnet.mgmt_pvt_sub2.id]
+  transit_gateway_id = aws_ec2_transit_gateway.test_hipaa_transit_gateway.id
+  vpc_id             = aws_vpc.management.id
+  transit_gateway_default_route_table_association = "false"
+  transit_gateway_default_route_table_propagation = "false"
+  tags = {
+    "Name" = "Management Transit Gateway Attachment"
+    "Purpose" = "Networking"
+  }
+  depends_on = [
+    aws_subnet.mgmt_pvt_sub1, aws_subnet.mgmt_pvt_sub2,
+  ]
+}
+
+resource "aws_ec2_transit_gateway_vpc_attachment" "ProductionVPCtoTransitGateway" {
+  subnet_ids         = [aws_subnet.prod_pvt_sub1.id, aws_subnet.prod_pvt_sub2.id]
+  transit_gateway_id = aws_ec2_transit_gateway.test_hipaa_transit_gateway.id
+  vpc_id             = aws_vpc.production.id
+  transit_gateway_default_route_table_association = "false"
+  transit_gateway_default_route_table_propagation = "false"
+  tags = {
+    "Name" = "Production Transit Gateway Attachment"
+    "Purpose" = "Networking"
+  }
+  depends_on = [
+    aws_subnet.prod_pvt_sub1, aws_subnet.prod_pvt_sub2,
+  ]
+}
+
+resource "aws_ec2_transit_gateway_vpc_attachment" "DevVPCtoTransitGateway" {
+  subnet_ids         = [aws_subnet.dev_pvt_sub1.id, aws_subnet.dev_pvt_sub2.id ]
+  transit_gateway_id = aws_ec2_transit_gateway.test_hipaa_transit_gateway.id
+  vpc_id             = aws_vpc.development.id
+  transit_gateway_default_route_table_association = "false"
+  transit_gateway_default_route_table_propagation = "false"
+  tags = {
+    "Name" = "Development Transit Gateway Attachment"
+    "Purpose" = "Networking"
+  }
+  depends_on = [
+    aws_subnet.dev_pvt_sub1, aws_subnet.dev_pvt_sub2,
+  ]
+}
+
+resource "aws_ec2_transit_gateway_route_table" "TransitGatewayExternalRouteTable" {
+  transit_gateway_id = aws_ec2_transit_gateway.test_hipaa_transit_gateway.id
+  tags = {
+    "Name" = "External Transit Gateway Route Table"
+    "Purpose" = "Networking"
+  }
+}
+
+resource "aws_ec2_transit_gateway_route_table" "TransitGatewayInternalRouteTable" {
+  transit_gateway_id = aws_ec2_transit_gateway.test_hipaa_transit_gateway.id
+  tags = {
+    "Name" = "Internal Transit Gateway Route Table"
+    "Purpose" = "Networking"
+  }
+}
+
+resource "aws_ec2_transit_gateway_route_table_association" "TransitGatewayExternalRouteTableAssociation" {
+  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.ManagementVPCtoTransitGateway.id
+  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.TransitGatewayExternalRouteTable.id
+}
+
+resource "aws_ec2_transit_gateway_route_table_association" "TransitGatewayProductionVPCRouteTableAssociation" {
+  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.ProductionVPCtoTransitGateway.id
+  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.TransitGatewayInternalRouteTable.id
+}
+
+resource "aws_ec2_transit_gateway_route_table_association" "TransitGatewayDevelopmentVPCRouteTableAssociation" {
+  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.DevVPCtoTransitGateway.id
+  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.TransitGatewayInternalRouteTable.id
+}
+
+resource "aws_ec2_transit_gateway_route_table_propagation" "TransitGatewayInternalRouteProp1" {
+  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.ProductionVPCtoTransitGateway.id
+  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.TransitGatewayInternalRouteTable.id
+}
+
+resource "aws_ec2_transit_gateway_route_table_propagation" "TransitGatewayInternalRouteProp2" {
+  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.DevVPCtoTransitGateway.id
+  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.TransitGatewayInternalRouteTable.id
+}
+
+resource "aws_ec2_transit_gateway_route_table_propagation" "TransitGatewayExternalRouteProp1" {
+  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.ManagementVPCtoTransitGateway.id
+  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.TransitGatewayExternalRouteTable.id
+}
+
+resource "aws_ec2_transit_gateway_route" "TransitGatewayInternalRoute1" {
+  destination_cidr_block         = "0.0.0.0/0"
+  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.ManagementVPCtoTransitGateway.id
+  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.TransitGatewayInternalRouteTable.id
+}
+
+resource "aws_ec2_transit_gateway_route" "TransitGatewayExternalRoute1" {
+  destination_cidr_block         = "${var.prod_vpc_cidr}"
+  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.ProductionVPCtoTransitGateway.id
+  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.TransitGatewayExternalRouteTable.id
+}
+
+resource "aws_ec2_transit_gateway_route" "TransitGatewayExternalRoute2" {
+  destination_cidr_block         = "${var.dev_vpc_cidr}"
+  transit_gateway_attachment_id  = aws_ec2_transit_gateway_vpc_attachment.DevVPCtoTransitGateway.id
+  transit_gateway_route_table_id = aws_ec2_transit_gateway_route_table.TransitGatewayExternalRouteTable.id
+}
+
+
+#
+resource "aws_route" "ManagementPrivateSubnet1Route1" {
+  route_table_id            = aws_route_table.mgmt_rt_pvtsub1.id
+  destination_cidr_block    = "${var.prod_vpc_cidr}"
+  transit_gateway_id = aws_ec2_transit_gateway.test_hipaa_transit_gateway.id
+  depends_on = [
+    aws_ec2_transit_gateway_vpc_attachment.ManagementVPCtoTransitGateway, aws_route_table.mgmt_rt_pvtsub1,
+  ]
+}
+
+resource "aws_route" "ManagementPrivateSubnet1Route2" {
+  route_table_id            = aws_route_table.mgmt_rt_pvtsub1.id
+  destination_cidr_block    = "${var.dev_vpc_cidr}"
+  transit_gateway_id = aws_ec2_transit_gateway.test_hipaa_transit_gateway.id
+  depends_on = [
+    aws_ec2_transit_gateway_vpc_attachment.ManagementVPCtoTransitGateway, aws_route_table.mgmt_rt_pvtsub1,
+  ]
+}
+
+resource "aws_route" "ManagementPrivateSubnet2Route1" {
+  route_table_id            = aws_route_table.mgmt_rt_pvtsub2.id
+  destination_cidr_block    = "${var.prod_vpc_cidr}"
+  transit_gateway_id = aws_ec2_transit_gateway.test_hipaa_transit_gateway.id
+  depends_on = [
+    aws_ec2_transit_gateway_vpc_attachment.ManagementVPCtoTransitGateway, aws_route_table.mgmt_rt_pvtsub2,
+  ]
+}
+
+resource "aws_route" "ManagementPrivateSubnet2Route2" {
+  route_table_id            = aws_route_table.mgmt_rt_pvtsub2.id
+  destination_cidr_block    = "${var.dev_vpc_cidr}"
+  transit_gateway_id = aws_ec2_transit_gateway.test_hipaa_transit_gateway.id
+  depends_on = [
+    aws_ec2_transit_gateway_vpc_attachment.ManagementVPCtoTransitGateway, aws_route_table.mgmt_rt_pvtsub2,
+  ]
+}
+
+#
+resource "aws_route" "ManagementPublicSubnet1Route1" {
+  route_table_id            = aws_route_table.mgmt_rt_pubsub1.id
+  destination_cidr_block    = "${var.prod_vpc_cidr}"
+  transit_gateway_id = aws_ec2_transit_gateway.test_hipaa_transit_gateway.id
+  depends_on = [
+    aws_ec2_transit_gateway_vpc_attachment.ManagementVPCtoTransitGateway, aws_route_table.mgmt_rt_pubsub1,
+  ]
+}
+
+resource "aws_route" "ManagementPublicSubnet1Route2" {
+  route_table_id            = aws_route_table.mgmt_rt_pubsub1.id
+  destination_cidr_block    = "${var.dev_vpc_cidr}"
+  transit_gateway_id = aws_ec2_transit_gateway.test_hipaa_transit_gateway.id
+  depends_on = [
+    aws_ec2_transit_gateway_vpc_attachment.ManagementVPCtoTransitGateway, aws_route_table.mgmt_rt_pubsub1,
+  ]
+}
+
+resource "aws_route" "ManagementPublicSubnet2Route1" {
+  route_table_id            = aws_route_table.mgmt_rt_pubsub2.id
+  destination_cidr_block    = "${var.prod_vpc_cidr}"
+  transit_gateway_id = aws_ec2_transit_gateway.test_hipaa_transit_gateway.id
+  depends_on = [
+    aws_ec2_transit_gateway_vpc_attachment.ManagementVPCtoTransitGateway, aws_route_table.mgmt_rt_pubsub2,
+  ]
+}
+
+resource "aws_route" "ManagementPublicSubnet2Route2" {
+  route_table_id            = aws_route_table.mgmt_rt_pubsub2.id
+  destination_cidr_block    = "${var.dev_vpc_cidr}"
+  transit_gateway_id = aws_ec2_transit_gateway.test_hipaa_transit_gateway.id
+  depends_on = [
+    aws_ec2_transit_gateway_vpc_attachment.ManagementVPCtoTransitGateway, aws_route_table.mgmt_rt_pubsub2,
+  ]
+}
+
+#
+resource "aws_route" "DevelopmentVPCDefaultRoute" {
+  route_table_id            = aws_route_table.rt_pvtsub1.id
+  destination_cidr_block    = "0.0.0.0/0"
+  transit_gateway_id = aws_ec2_transit_gateway.test_hipaa_transit_gateway.id
+  depends_on = [
+    aws_ec2_transit_gateway_vpc_attachment.DevVPCtoTransitGateway, aws_route_table.rt_pvtsub1,
+  ]
+}
+
+resource "aws_route" "ProductionVPCDefaultRoute" {
+  route_table_id            = aws_route_table.prod_rt_pvtsub1.id
+  destination_cidr_block    = "0.0.0.0/0"
+  transit_gateway_id = aws_ec2_transit_gateway.test_hipaa_transit_gateway.id
+  depends_on = [
+    aws_ec2_transit_gateway_vpc_attachment.ProductionVPCtoTransitGateway, aws_route_table.prod_rt_pvtsub1,
+  ]
+}
+
+

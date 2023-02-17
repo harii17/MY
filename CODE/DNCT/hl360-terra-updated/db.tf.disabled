@@ -1,0 +1,38 @@
+# terraform aws db subnet group
+resource "aws_db_subnet_group" "database-subnet-group" {
+  name         = "database subnets2"
+  subnet_ids   = [aws_subnet.prod_pvt_sub_db1.id, aws_subnet.prod_pvt_sub_db2.id]
+  description  = "Subnets for Database Instance"
+
+  tags   = {
+    Name = "Database Subnets"
+  }
+
+  depends_on = [
+    aws_subnet.prod_pvt_sub_db1, aws_subnet.prod_pvt_sub_db2,
+  ]
+}
+
+
+
+resource "aws_db_instance" "database-instance" {
+  instance_class          = "${var.database-instance-class}"
+  allocated_storage       = "${var.allocated_storage}"
+  engine                  = "mariadb"
+  engine_version          = "10.6"
+  skip_final_snapshot     = true
+#  availability_zone       = [${var.az_1}, ${var.az_2}]
+  identifier              = "${var.database-instance-identifier}"
+  username                = "${var.dbusername}"
+  password                = "${var.dbpass}"
+  db_subnet_group_name    = aws_db_subnet_group.database-subnet-group.name
+  multi_az                = "${var.multi-az-deployment}"
+  enabled_cloudwatch_logs_exports = ["audit", "error", "general", "slowquery"]
+  storage_encrypted       = true
+  deletion_protection     = true
+  vpc_security_group_ids  = [aws_security_group.database-security-group.id]
+
+  depends_on = [
+    aws_security_group.database-security-group, aws_db_subnet_group.database-subnet-group, 
+  ]
+}

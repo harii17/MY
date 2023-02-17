@@ -1,0 +1,43 @@
+{
+  "Version": "2008-10-17",
+  "Id": "__default_policy_ID",
+  "Statement": [
+    {
+      "Sid": "__default_statement_ID",
+      "Effect": "Allow",
+      "Principal": {
+        "AWS": "*"
+      },
+      "Action": [
+        "SNS:GetTopicAttributes",
+        "SNS:SetTopicAttributes",
+        "SNS:AddPermission",
+        "SNS:RemovePermission",
+        "SNS:DeleteTopic",
+        "SNS:Subscribe",
+        "SNS:ListSubscriptionsByTopic",
+        "SNS:Publish"
+      ],
+      "Resource": "arn:aws:sns:us-west-1:512244112598:user-updates-topic",
+      "Condition": {
+        "StringEquals": {
+          "AWS:SourceOwner": "512244112598"
+        }
+      }
+    },
+    {
+      "Sid": "AWSCloudTrailSNSPolicy20150319",
+      "Effect": "Allow",
+      "Principal": {
+        "Service": "cloudtrail.amazonaws.com"
+      },
+      "Action": "SNS:Publish",
+      "Resource": "arn:aws:sns:us-west-1:512244112598:user-updates-topic",
+      "Condition": {
+        "StringEquals": {
+          "AWS:SourceArn": "arn:aws:cloudtrail:us-west-1:512244112598:trail/cloudtrail"
+        }
+      }
+    }
+  ]
+}
